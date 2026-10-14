@@ -70,14 +70,13 @@ jobs:
               if marker not in text:
                   raise SystemExit("ERROR: android block not found")
 
-              # Insert packaging block correctly (بدون آکولاد اضافی)
-              insertion = """
-    packaging {
-        resources {
-            excludes += "META-INF/DISCLAIMER"
-        }
-    }
-"""
+              insertion = (
+                  "\n    packaging {\n"
+                  "        resources {\n"
+                  '            excludes += "META-INF/DISCLAIMER"\n'
+                  "        }\n"
+                  "    }\n"
+              )
               text = text.replace(marker, marker + insertion, 1)
 
           gradle_file.write_text(text)
