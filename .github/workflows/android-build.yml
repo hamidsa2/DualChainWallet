@@ -10,6 +10,9 @@ on:
 permissions:
   contents: read
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -86,11 +89,16 @@ jobs:
 
       - name: Build debug APK
         run: |
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            echo ">>> gradle-wrapper.jar missing, regenerating wrapper with Gradle 8.7"
+            gradle wrapper --gradle-version 8.7
+          fi
+
           if [ -f gradlew ]; then
             chmod +x gradlew
-            ./gradlew --no-daemon --stacktrace assembleDebug
+            ./gradlew --no-daemon --stacktrace --info assembleDebug 2>&1 | tee /tmp/gradle-build.log
           else
-            gradle --no-daemon --stacktrace assembleDebug
+            gradle --no-daemon --stacktrace --info assembleDebug 2>&1 | tee /tmp/gradle-build.log
           fi
         working-directory: ${{ env.PROJECT_DIR }}
 
@@ -101,6 +109,15 @@ jobs:
           name: DualChainWallet-debug-apk
           path: extracted/**/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload gradle build log
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: gradle-build-log
+          path: /tmp/gradle-build.log
+          if-no-files-found: warn
           retention-days: 7
 
       - name: Upload build reports and logs
