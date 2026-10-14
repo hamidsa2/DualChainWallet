@@ -12,15 +12,15 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -65,40 +65,20 @@ jobs:
 
           text = gradle_file.read_text()
 
-          if gradle_file.name == "build.gradle":
-              if 'excludes += "META-INF/DISCLAIMER"' not in text:
-                  marker = "android {"
-                  if marker not in text:
-                      raise SystemExit("ERROR: android block not found")
+          if 'excludes += "META-INF/DISCLAIMER"' not in text:
+              marker = "android {"
+              if marker not in text:
+                  raise SystemExit("ERROR: android block not found")
 
-                  text = text.replace(
-                      marker,
-                      marker + """
-              packaging {
-                  resources {
-                      excludes += "META-INF/DISCLAIMER"
-                  }
-              }
-          """,
-                      1
-                  )
-          else:
-              if 'excludes += "META-INF/DISCLAIMER"' not in text:
-                  marker = "android {"
-                  if marker not in text:
-                      raise SystemExit("ERROR: android block not found")
-
-                  text = text.replace(
-                      marker,
-                      marker + """
-              packaging {
-                  resources {
-                      excludes += "META-INF/DISCLAIMER"
-                  }
-              }
-          """,
-                      1
-                  )
+              # Insert packaging block correctly (بدون آکولاد اضافی)
+              insertion = """
+    packaging {
+        resources {
+            excludes += "META-INF/DISCLAIMER"
+        }
+    }
+"""
+              text = text.replace(marker, marker + insertion, 1)
 
           gradle_file.write_text(text)
           print("Updated:", gradle_file)
@@ -106,12 +86,18 @@ jobs:
           PY
 
       - name: Build debug APK
-        run: gradle --no-daemon --stacktrace assembleDebug
+        run: |
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            ./gradlew --no-daemon --stacktrace assembleDebug
+          else
+            gradle --no-daemon --stacktrace assembleDebug
+          fi
         working-directory: ${{ env.PROJECT_DIR }}
 
       - name: Upload APK
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: DualChainWallet-debug-apk
           path: extracted/**/build/outputs/apk/debug/*.apk
@@ -120,7 +106,7 @@ jobs:
 
       - name: Upload build reports and logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: DualChainWallet-build-diagnostics
           path: |
