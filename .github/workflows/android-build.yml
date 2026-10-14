@@ -14,6 +14,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -26,7 +27,9 @@ jobs:
 
       - name: Install Gradle 8.7
         run: |
-          curl -fL --retry 3 https://services.gradle.org/distributions/gradle-8.7-bin.zip -o /tmp/gradle.zip
+          curl -fL --retry 3 \
+            https://services.gradle.org/distributions/gradle-8.7-bin.zip \
+            -o /tmp/gradle.zip
           unzip -q /tmp/gradle.zip -d /tmp
           echo "/tmp/gradle-8.7/bin" >> "$GITHUB_PATH"
           /tmp/gradle-8.7/bin/gradle --version
@@ -34,12 +37,73 @@ jobs:
       - name: Extract Android project
         run: |
           unzip -q source.zip -d extracted
+
           if [ -d extracted/DualChainWallet_Project ]; then
             echo "PROJECT_DIR=extracted/DualChainWallet_Project" >> "$GITHUB_ENV"
           else
             echo "PROJECT_DIR=extracted" >> "$GITHUB_ENV"
           fi
-          find extracted -maxdepth 3 -type f | head -80
+
+          find extracted -maxdepth 4 -type f | head -100
+
+      - name: Fix duplicate DISCLAIMER resource
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+
+          project = Path(os.environ["PROJECT_DIR"])
+          gradle_file = project / "app" / "build.gradle"
+
+          if not gradle_file.exists():
+              gradle_file = project / "app" / "build.gradle.kts"
+
+          if not gradle_file.exists():
+              raise SystemExit(
+                  "ERROR: app/build.gradle or app/build.gradle.kts not found"
+              )
+
+          text = gradle_file.read_text()
+
+          if gradle_file.name == "build.gradle":
+              if 'excludes += "META-INF/DISCLAIMER"' not in text:
+                  marker = "android {"
+                  if marker not in text:
+                      raise SystemExit("ERROR: android block not found")
+
+                  text = text.replace(
+                      marker,
+                      marker + """
+              packaging {
+                  resources {
+                      excludes += "META-INF/DISCLAIMER"
+                  }
+              }
+          """,
+                      1
+                  )
+          else:
+              if 'excludes += "META-INF/DISCLAIMER"' not in text:
+                  marker = "android {"
+                  if marker not in text:
+                      raise SystemExit("ERROR: android block not found")
+
+                  text = text.replace(
+                      marker,
+                      marker + """
+              packaging {
+                  resources {
+                      excludes += "META-INF/DISCLAIMER"
+                  }
+              }
+          """,
+                      1
+                  )
+
+          gradle_file.write_text(text)
+          print("Updated:", gradle_file)
+          print(text)
+          PY
 
       - name: Build debug APK
         run: gradle --no-daemon --stacktrace assembleDebug
